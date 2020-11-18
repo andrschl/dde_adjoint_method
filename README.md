@@ -1,2 +1,2 @@
 # dde_adjoint_method
-Interpolating Adjoint Method for DDEs with constant lags
+Interpolating Adjoint method for DDEs with constant lags
