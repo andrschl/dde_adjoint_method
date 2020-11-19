@@ -1,17 +1,3 @@
-cd(@__DIR__)
-using Pkg; Pkg.activate("."); Pkg.instantiate(); using Revise
-using Flux, Zygote
-using DifferentialEquations, DiffEqSensitivity
-using DataStructures, LinearAlgebra
-
-# define some constants
-data_dim = 2
-# lags = []
-lags = Array(0.1:0.1:1)
-ndelays = length(lags)
-t = Array(5.0:8.0)
-t_span = (t[1], t[end])
-
 """
 vector jacobian product with respect to input
 """
@@ -155,49 +141,7 @@ function interpolating_dde_adjoint(sol, f, p, t, l, lags; dl=nothing, data=zeros
         a1 = s1[1:data_dim]
         a0 =  a1 + dl(sol(T - ξ1), data[:, i]) # apply jump discontinuity
         i += 1
+        GC.gc()
     end
     return dldp
 end
-
-################################################################################
-# Verify method using some basic neural network
-u0 = ones(2)
-model = Chain(Dense(data_dim*(1+ndelays),10, tanh), Dense(10,2))
-p, re = Flux.destructure(model)
-f=(u,p) -> re(p)(u)
-t_span = (t[1], t[end])
-
-function ndde_func(u, h, p, t)
-    global lags
-    ut = vcat(u, map(τ -> h(p,t-τ), lags)...)
-    return f(ut, p)
-end
-function ndde_func!(du, u, h, p, t)
-    global lags
-    ut = vcat(u, map(τ -> h(p,t-τ), lags)...)
-    du .= f(ut, p)
-end
-
-# calculate solution on t∈[0,10]
-h0 = (p,t;idxs=nothing) -> ones(data_dim)
-alg = MethodOfSteps(Tsit5())
-sol = solve(DDEProblem(ndde_func!, u0, h0, (0,10), p=p), alg, u0=u0, p=p, dense=true)
-t_span
-
-# now calculate AD gradients on [5,10] (LSQ loss and zero data). The transition
-# between history and solution should now be smooth enough
-u5 = sol(5)
-h5 = (p,t;idxs=nothing) -> sol(t)
-prob = DDEProblem(ndde_func!, u5, h5, t_span, p=p)
-ps = Flux.params(p)
-gs = gradient(ps) do
-    pred = Array(solve(prob, alg, u0=u5, p=p, saveat=t, sensealg = ReverseDiffAdjoint()))
-    # pred = Array(solve(prob, alg, u0=u5, p=p, saveat=t, sensealg = ForwardDiffSensitivity()))
-    sum(dot.(eachcol(pred),eachcol(pred)))
-end
-gp = gs[p]
-t
-# custom interpolating adjoint sensitivity method
-loss = (x,y)->(x-y)'*(x-y)
-dldp = interpolating_dde_adjoint(sol, f, p, t, loss, lags)
-(dldp-gp)./dldp
