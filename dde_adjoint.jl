@@ -18,25 +18,7 @@ returns current delay state vector (x(t),x(t-τ_1),...,x(t-τ_k))
 function get_delayed_states(sol, t, lags)
     vcat(map(t->sol(t), t .- vcat([0], lags))...)
 end
-# """
-# returns discontuity times, which we add to constant_lags in order to account
-# for discontinuities in the adjoint state.
-# """
-# #TODO: For discontinuities between initial history and solution it would be better to manually restart solver
-# function get_disc_points(t0, past_times, lags)
-#     taus = []
-#     append!(taus, lags)
-#     append!(taus, vcat(map(past_t -> relu.(past_t-t0.+lags), reverse(past_times))...))
-#     taus = setdiff(union(taus), [0])
-#     # remove duplicates and sort
-#     o = Lt((x,y) -> x < y - 1e-3)
-#     taus = SortedSet(taus, o)
-#     disc_points = []
-#     for i in taus
-#         push!(disc_points, i)
-#     end
-#     return disc_points
-# end
+
 """
 returns C^n Discontinuities for 1 <= n <= order (due to adjoint jumps and not discontinuous DDE!)
 """
@@ -55,40 +37,6 @@ function get_higher_order_disc(ξ, lags; order=2, tol=1e-4)
     return collect(n_order_disc)
 end
 
-# """
-# returns array of relevant past sample times in t
-# """
-# function get_past_times(t, t0_index, lags)
-#     τ_max = maximum(lags)
-#     t0 = t[t0_index]
-#     past_times = setdiff(map(t -> (t0-t>0)&&(t0-t<=τ_max) ? t : nothing, t), [nothing])
-#     return past_times
-# end
-# """
-# returns upper bound of current t-interval which is the key for history dictionary TODO: double check this
-# """
-# function get_key(t_current, t0, past_times)
-#     if t_current > t0
-#         return "nothing"
-#     else
-#         all_times = vcat(past_times, [t0])
-#         return string(Float64(all_times[searchsortedfirst(all_times, t_current)]))
-#     end
-# end
-# """
-# Struct to describe initial history of adjoint state (which is discontinuous)
-# """
-# mutable struct AdHistory
-#     h_dict::Dict{String, Function}
-#     t0::AbstractFloat
-#     past_times::AbstractArray
-# end
-# AdHistory(t0, past_times, key, value) = AdHistory(Dict("nothing"=>t->zeros(data_dim), key=>value), t0, past_times)
-# a = AdHistory(1.1, [], string(1.1), x->x)
-# (m::AdHistory)(t) = begin
-#     key = get_key(t, m.t0, m.past_times)
-#     return m.h_dict[key](t)
-# end
 function interpolating_dde_adjoint(sol, f, p, t, l, lags; dl=nothing, data=zeros(data_dim, length(t)))
     if dl==nothing
         dl = (x,x_true)->gradient(y->l(y,x_true), x)[1]
@@ -159,6 +107,3 @@ function interpolating_dde_adjoint(sol, f, p, t, l, lags; dl=nothing, data=zeros
 
     return dldp
 end
-
-aa = Array(0.1:0.2:11)
-aaa=findfirst(isequal(0.3), aa)
