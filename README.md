@@ -1,7 +1,9 @@
 # dde_adjoint_method
 Julia code for interpolating adjoint sensitivity method for DDEs with constant lags [[1]](#1). 
 
-dde_adjoint.jl contains the interpolating adjoint code followed by a short neural ODE example. It uses Differentialequations.jl [[2]](#2) for the DDE solvers. The own implementation is compared to built-in AD sensitivity methods ForwardDiffSensitivity() and ReverseDiffAdjoint(). Whereas, they agree for no delays, there is a considerable mismatch for non-zero delays. The method assumes constant lags, and currently also a smooth enough transition between initial history and DDE solution. The discontinuities from the adjoint state are passed to the solver by constant_lags.
+dde_adjoint.jl contains the interpolating adjoint code followed by a short neural ODE example. It uses Differentialequations.jl [[2]](#2) for the DDE solvers. The own implementation is compared to built-in AD sensitivity methods ForwardDiffSensitivity() and ReverseDiffAdjoint(). 
+
+The method assumes autonomous dynamics, constant lags, and currently also a smooth enough transition between initial history and DDE solution. The discontinuities from the adjoint state are passed to the solver by constant_lags.
 
 ## References
 <a id="1">[1]</a> 
