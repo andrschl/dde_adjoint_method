@@ -85,10 +85,11 @@ a = AdHistory(1.1, [], string(1.1), x->x)
     key = get_key(t, m.t0, m.past_times)
     return m.h_dict[key](t)
 end
-function interpolating_dde_adjoint(sol, f, p, t, l, lags; dl=nothing)
+function interpolating_dde_adjoint(sol, f, p, t, l, lags; dl=nothing, data=zeros(data_dim, length(t)))
     if dl==nothing
-        dl = x->gradient(l, x)[1]
+        dl = (x,x_true)->gradient(y->l(y,x_true), x)[1]
     end
+    alg = MethodOfSteps(Tsit5())
     # we need the functions fi: xi->f(x0,...,xi,...,xk)
     fs = []
     for i in 0:ndelays
@@ -118,7 +119,7 @@ function interpolating_dde_adjoint(sol, f, p, t, l, lags; dl=nothing)
     end
     ξ = reverse(T .- t)
     dldp = zero(p)
-    a0 = dl(sol(t[end]))
+    a0 = dl(sol(t[end]), data[:,1])
     h_a = AdHistory(ξ[1], [], string(ξ[1]), ξ -> ξ==0 ? a0 : zero(a0))
     past_times = []
     i = 2
@@ -140,15 +141,19 @@ function interpolating_dde_adjoint(sol, f, p, t, l, lags; dl=nothing)
         if !isempty(lags)
             push!(h_a.h_dict, string(ξ1) => ξ -> a_sol(ξ,idxs=1:data_dim))
             h_a.t0 = ξ1
+            prev_past_times = past_times
             past_times = get_past_times(ξ, i, lags)
             h_a.past_times = past_times
+            # delete old stuff in history dict
+            for time in setdiff(prev_past_times, past_times)
+                delete!(h_a.h_dict, string(Float64(time)))
+            end
         end
-        # TODO: could delete old stuff from h_dict
 
         # update dldp and a0
         dldp += s1[data_dim+1:end]
         a1 = s1[1:data_dim]
-        a0 =  a1 + dl(sol(T - ξ1)) # apply jump discontinuity
+        a0 =  a1 + dl(sol(T - ξ1), data[:, i]) # apply jump discontinuity
         i += 1
     end
     return dldp
@@ -175,7 +180,7 @@ end
 
 # calculate solution on t∈[0,10]
 h0 = (p,t;idxs=nothing) -> ones(data_dim)
-alg = Tsit5()
+alg = MethodOfSteps(Tsit5())
 sol = solve(DDEProblem(ndde_func!, u0, h0, (0,10), p=p), alg, u0=u0, p=p, dense=true)
 t_span
 
@@ -191,8 +196,8 @@ gs = gradient(ps) do
     sum(dot.(eachcol(pred),eachcol(pred)))
 end
 gp = gs[p]
-
+t
 # custom interpolating adjoint sensitivity method
-loss = y->y'y
+loss = (x,y)->(x-y)'*(x-y)
 dldp = interpolating_dde_adjoint(sol, f, p, t, loss, lags)
 (dldp-gp)./dldp
